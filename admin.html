@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Panel - Attendance App</title>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Amiri', serif;
+      background-color: #1d3e63;
+      background-size: cover;
+      background-position: center;
+      color: #fff;
+    }
+
+    .container {
+      max-width: 950px;
+      margin: 40px auto;
+      background: rgba(255, 255, 255, 0.07);
+      padding: 25px;
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.4);
+      text-align: center;
+    }
+
+    h2 {
+      font-size: 28px;
+      margin-bottom: 15px;
+      color: #FFD700;
+    }
+
+    input, select, button {
+      padding: 10px;
+      margin: 6px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+      font-family: 'Amiri', serif;
+    }
+
+    button {
+      background-color: #FFD700;
+      color: #002147;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #e5c100;
+    }
+
+    .hidden { display: none; }
+
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #fff;
+      padding: 8px;
+      text-align: center;
+      font-size: 15px;
+    }
+
+    th {
+      background-color: #001f3f;
+      color: #FFD700;
+    }
+
+    td.clickable {
+      cursor: pointer;
+      background-color: rgba(255, 255, 255, 0.07);
+    }
+
+    #saveMsg {
+      color: #00ff95;
+      margin-top: 10px;
+    }
+
+     .logo2 {
+      max-width: 100px;
+      max-height: 100px;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="logo2.png" alt="Logo 2" class="logo2" />
+  </header>
+  <div class="container">
+    <h2>🔐 Admin Login</h2>
+    <input type="text" id="adminId" placeholder="Admin ID">
+    <input type="password" id="adminPass" placeholder="Password">
+    <button onclick="loginAdmin()">Login</button>
+    <p id="adminError" style="color:red;"></p>
+
+    <div id="adminView" class="hidden">
+      <h2>📅 Admin - Mark Attendance</h2>
+      <select id="class" onchange="loadStudents()">
+        <option value="4">Class 4</option>
+        <option value="5">Class 5</option>
+        <option value="6">Class 6</option>
+        <option value="7">Class 7</option>
+        <option value="8">Class 8</option>
+        <option value="9">Class 9</option>
+      </select>
+      <input type="date" id="date" />
+      <button onclick="loadAttendance()">🔄 Load</button>
+      <button onclick="markAllPresent()">✅ Mark All Present</button>
+      <button onclick="clearMarks()">❎ Deselect All</button>
+      <button onclick="logout()">🔓 Logout</button>
+
+      <table>
+        <thead><tr><th>#</th><th>ID</th><th>Name</th><th>Status</th></tr></thead>
+        <tbody id="attendanceBody"></tbody>
+      </table>
+
+      <hr>
+<h2>📜 Leave Applications</h2>
+<button onclick="viewLeaveRequests()">📩 View Leave Requests</button>
+<table id="leaveTable" style="width:100%; margin-top:10px; display:none;">
+  <thead>
+    <tr>
+      <th>Student ID</th>
+      <th>Name</th>
+      <th>Class</th>
+      <th>From</th>
+      <th>To</th>
+      <th>Days</th>
+      <th>Reason</th>
+      <th>Submitted At</th>
+    </tr>
+  </thead>
+  <tbody id="leaveList"></tbody>
+</table>
+<hr>
+<h2>🛠️ Change Username & Password</h2>
+<form onsubmit="changeCredentials(event)">
+  <input type="text" id="oldUsername" placeholder="Current Username" required />
+  <input type="password" id="oldPassword" placeholder="Current Password" required />
+  <input type="text" id="newUsername" placeholder="New Username" required />
+  <input type="password" id="newPassword" placeholder="New Password" required />
+  <button type="submit">🔑 Update Credentials</button>
+</form>
+<p id="changeMsg" style="color:lightgreen; display:none;">✅ Updated successfully!</p>
+
+
+      <hr>
+      <h2>📊 Monthly Report</h2>
+      <select id="reportMonth">
+        <option value="01">January</option><option value="02">February</option>
+        <option value="03">March</option><option value="04">April</option>
+        <option value="05">May</option><option value="06">June</option>
+        <option value="07">July</option><option value="08">August</option>
+        <option value="09">September</option><option value="10">October</option>
+        <option value="11">November</option><option value="12">December</option>
+      </select>
+      <input type="number" id="reportYear" value="2025" min="2020" max="2035">
+      <button onclick="generateMonthlyReport()">📈 Generate</button>
+      <table id="monthlyReportTable" class="hidden">
+        <thead><tr><th>#</th><th>ID</th><th>Name</th><th>Present</th><th>Absent</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const adminId = "30406440";
+    const adminPass = "Huzaifa52";
+    const studentData = {
+      "4": [
+        { id: "50210964", name: "Adnan bhai Murtaza bhai Makda" },
+        { id: "50221274", name: "Ammar bhai Khuzaima bhai Thathya" },
+        { id: "50161649", name: "Burhanuddin bhai Husain bhai Bharmal" },
+        { id: "50183863", name: "Idris bhai Johar bhai Bharmal" },
+        { id: "50221822", name: "Insiya bai Husain bhai Tarvadi" },
+        { id: "50182440", name: "Mohammad bhai Taher bhai Kapasi" },
+        { id: "50181805", name: "Mufaddal bhai Husain bhai Hathyari" },
+        { id: "50180461", name: "Tasnim bai Aqeel bhai Vakhariya" },
+        { id: "40905325", name: "Tasnim bai Moiz bhai Hathyari" },
+        { id: "50232407", name: "Zahra bai Huzaifa bhai Kapasi" }
+      ],
+      "5": [
+        { id: "50193012", name: "Batul bai Amiruddin bhai Vakhariyah" },
+        { id: "50203861", name: "Batul bai Imran bhai Tarvadi" },
+        { id: "30160004", name: "Burhanuddin bhai Baqir bhai Thathiya" },
+        { id: "40905320", name: "Husain bhai Hatim bhai Kapasi" },
+        { id: "30160386", name: "Insiya bai Mufaddal bhai Bharamal" },
+        { id: "50221273", name: "Jamila bai Khuzaima bhai Thathya" },
+        { id: "50212138", name: "Joon bhai Munavar bhai Travadi" },
+        { id: "40912877", name: "Joone bhai Husain bhai Bharmal" },
+        { id: "50180021", name: "Jumana bai Burhanuddin bhai Khorakiwala" },
+        { id: "40914840", name: "Mohammed bhai Aamir bhai Kapadia" },
+        { id: "50160563", name: "Mohammed bhai Quraish bhai Divasali" },
+        { id: "40905321", name: "Saifuddin bhai Aqeel bhai Tarvadi" },
+        { id: "40905324", name: "Shirin bai Mulla Yusuf bhai Travadi" },
+        { id: "50192260", name: "Zainab bai Aliasgar bhai Sadikot" }
+      ],
+      "6": [
+        { id: "40914834", name: "Adnan bhai Fakhruddin bhai Tarvadi" },
+        { id: "40905319", name: "Huzefa bhai Husain bhai Bharmal" },
+        { id: "40920244", name: "Insya bai Murtaza bhai Vanak" },
+        { id: "30152977", name: "Yusuf bhai Munavar bhai Travadi" },
+        { id: "50161502", name: "Zahra bai Aliasgar bhai Travadi" }
+      ],
+      "7": [
+        { id: "50161648", name: "Aamena bai Husain bhai Bharmal" },
+        { id: "30151764", name: "Aarefa bai Alihusain bhai Godit" },
+        { id: "50160562", name: "Fatema bai Mohammed bhai Divasali" },
+        { id: "50161501", name: "Malekulashter bhai Mohammed bhai Travadi" }
+      ],
+      "8": [
+        { id: "30919468", name: "Husen bhai Hozefa bhai Thathiya" },
+        { id: "30919464", name: "Khadija bai Quraish bhai Divasali" },
+        { id: "40905316", name: "Mohamed bhai Abbas bhai Tarvadi" }
+      ],
+      "9": [
+        { id: "30160002", name: "Yusuf bhai Baqir bhai Thathiya" }
+      ]
+    };
+
+    function loginAdmin() {
+      const id = document.getElementById("adminId").value.trim();
+      const pass = document.getElementById("adminPass").value.trim();
+      if (id === adminId && pass === adminPass) {
+        document.getElementById("adminView").classList.remove("hidden");
+        document.getElementById("adminError").textContent = "";
+        document.getElementById("adminId").value = "";
+        document.getElementById("adminPass").value = "";
+        document.getElementById("date").valueAsDate = new Date();
+        loadStudents();
+      } else {
+        document.getElementById("adminError").textContent = "Invalid ID or password!";
+      }
+    }
+
+    function logout() {
+      location.reload();
+    }
+
+    function getStorageKey(cls, date) {
+      return `attendance_admin_class_${cls}_date_${date}`;
+    }
+
+    function loadStudents() {
+      const classId = document.getElementById("class").value;
+      const students = studentData[classId] || [];
+      const tbody = document.getElementById("attendanceBody");
+      tbody.innerHTML = "";
+      students.forEach((student, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${index + 1}</td><td>${student.id}</td><td>${student.name}</td>`;
+        const cell = document.createElement("td");
+        cell.classList.add("clickable");
+        cell.addEventListener("click", () => {
+          cell.textContent = cell.textContent === "✅" ? "❌" : cell.textContent === "❌" ? "🚫" : "✅";
+          saveAttendance();
+        });
+        row.appendChild(cell);
+        tbody.appendChild(row);
+      });
+      loadAttendance();
+    }
+
+    function loadAttendance() {
+      const cls = document.getElementById("class").value;
+      const date = document.getElementById("date").value;
+      const data = JSON.parse(localStorage.getItem(getStorageKey(cls, date)) || "{}");
+      const rows = document.getElementById("attendanceBody").rows;
+      Array.from(rows).forEach((row, i) => {
+        row.cells[3].textContent = data[i] || "";
+      });
+    }
+
+    function saveAttendance() {
+      const cls = document.getElementById("class").value;
+      const date = document.getElementById("date").value;
+      const tbody = document.getElementById("attendanceBody");
+      const data = {};
+      Array.from(tbody.rows).forEach((row, i) => {
+        data[i] = row.cells[3].textContent;
+      });
+      localStorage.setItem(getStorageKey(cls, date), JSON.stringify(data));
+      document.getElementById("saveMsg").style.display = "block";
+      setTimeout(() => document.getElementById("saveMsg").style.display = "none", 2000);
+    }
+
+    function markAllPresent() {
+      const rows = document.getElementById("attendanceBody").rows;
+      Array.from(rows).forEach(row => row.cells[3].textContent = "✅");
+      saveAttendance();
+    }
+
+    function clearMarks() {
+      const rows = document.getElementById("attendanceBody").rows;
+      Array.from(rows).forEach(row => row.cells[3].textContent = "");
+      saveAttendance();
+    }
+
+    function viewLeaveRequests() {
+  const leaveList = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
+  const tbody = document.getElementById("leaveList");
+  const table = document.getElementById("leaveTable");
+
+  const today = new Date().toISOString().split("T")[0];
+  tbody.innerHTML = "";
+
+  const activeLeaves = leaveList.filter(req => {
+    const toDate = req.to || req.date;
+    return toDate >= today; // only show leaves ending today or in future
+  });
+
+  if (activeLeaves.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8">No upcoming leave requests.</td></tr>`;
+  } else {
+    activeLeaves.forEach(req => {
+      const from = req.from || req.date;
+      const to = req.to || req.date;
+      const days = Math.ceil((new Date(to) - new Date(from)) / (1000 * 60 * 60 * 24)) + 1;
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${req.id}</td>
+        <td>${req.name}</td>
+        <td>${req.classId}</td>
+        <td>${from}</td>
+        <td>${to}</td>
+        <td>${days}</td>
+        <td>${req.reason}</td>
+        <td>${req.time}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  table.style.display = "table"; // Ensure the table is visible
+}
+
+    function generateMonthlyReport() {
+      const month = document.getElementById("reportMonth").value;
+      const year = document.getElementById("reportYear").value;
+      const cls = document.getElementById("class").value;
+      const students = studentData[cls];
+      const report = {};
+      students.forEach(s => report[s.id] = { name: s.name, present: 0, absent: 0 });
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith(`attendance_admin_class_${cls}_date_`)) {
+          const match = key.match(/date_(\d{4})-(\d{2})-\d{2}/);
+          if (match && match[1] === year && match[2] === month) {
+            const data = JSON.parse(localStorage.getItem(key));
+            students.forEach((s, index) => {
+              const mark = data[index];
+              if (mark === "✅") report[s.id].present++;
+              else if (mark === "❌") report[s.id].absent++;
+            });
+          }
+        }
+      }
+
+      const tbody = document.getElementById("monthlyReportTable").querySelector("tbody");
+      tbody.innerHTML = "";
+      students.forEach((s, i) => {
+        const row = `<tr><td>${i + 1}</td><td>${s.id}</td><td>${s.name}</td><td>${report[s.id].present}</td><td>${report[s.id].absent}</td></tr>`;
+        tbody.innerHTML += row;
+      });
+      document.getElementById("monthlyReportTable").classList.remove("hidden");
+    }
+
+    function changeCredentials(event, role) {
+  event.preventDefault();
+
+  const oldUsername = document.getElementById("oldUsername").value.trim();
+  const oldPassword = document.getElementById("oldPassword").value.trim();
+  const newUsername = document.getElementById("newUsername").value.trim();
+  const newPassword = document.getElementById("newPassword").value.trim();
+
+  // Get stored credentials
+  const stored = JSON.parse(localStorage.getItem(`${role}Credentials`) || "{}");
+
+  if (oldUsername === stored.username && oldPassword === stored.password) {
+    // Save new credentials
+    localStorage.setItem(`${role}Credentials`, JSON.stringify({
+      username: newUsername,
+      password: newPassword
+    }));
+    document.getElementById("changeMsg").textContent = "✅ Credentials updated!";
+    document.getElementById("changeMsg").style.color = "lightgreen";
+  } else {
+    document.getElementById("changeMsg").textContent = "❌ Incorrect current credentials!";
+    document.getElementById("changeMsg").style.color = "red";
+  }
+
+  setTimeout(() => {
+    document.getElementById("changeMsg").textContent = "";
+  }, 3000);
+
+  // Optional: Clear form
+  event.target.reset();
+}
+  </script>
+    <img src="logo2.png" alt="Logo 2" class="logo2" />
+</body>
+</html>
