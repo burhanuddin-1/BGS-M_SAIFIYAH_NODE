@@ -273,18 +273,25 @@
 }
 
 
-   function viewLeaveRequests() {
+  function viewLeaveRequests() {
   const leaveList = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
   const tbody = document.getElementById("leaveList");
   const table = document.getElementById("leaveTable");
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   tbody.innerHTML = "";
 
+  // Filter out expired leaves
   const activeLeaves = leaveList.filter(req => {
-    const toDate = req.to || req.date;
-    return toDate >= today; // only show leaves ending today or in future
+    const toDate = new Date(req.to || req.date);
+    toDate.setHours(0, 0, 0, 0);
+    return toDate >= today;
   });
+
+  // Sort by submission time (newest first)
+  activeLeaves.sort((a, b) => new Date(b.time) - new Date(a.time));
 
   if (activeLeaves.length === 0) {
     tbody.innerHTML = `<tr><td colspan="8">No upcoming leave requests.</td></tr>`;
@@ -309,7 +316,7 @@
     });
   }
 
-  table.style.display = "table"; // Ensure the table is visible
+  table.style.display = "table";
 }
 
 
