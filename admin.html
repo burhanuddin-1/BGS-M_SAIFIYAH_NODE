@@ -228,27 +228,55 @@
       ]
     };
 
-    function loginAdmin() {
+    async function loginAdmin() {
       const id = document.getElementById("adminId").value.trim();
       const pass = document.getElementById("adminPass").value.trim();
-      if (id === adminId && pass === adminPass) {
-        document.getElementById("adminView").classList.remove("hidden");
-        document.getElementById("adminError").textContent = "";
-        document.getElementById("adminId").value = "";
-        document.getElementById("adminPass").value = "";
-        document.getElementById("date").valueAsDate = new Date();
-        loadStudents();
-      } else {
-        document.getElementById("adminError").textContent = "Invalid ID or password!";
+      
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ username: id, password: pass })
+        });
+        
+        if (response.ok) {
+          const { token, user } = await response.json();
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(user));
+          
+          document.getElementById("adminView").classList.remove("hidden");
+          document.getElementById("adminError").textContent = "";
+          document.getElementById("adminId").value = "";
+          document.getElementById("adminPass").value = "";
+          document.getElementById("date").valueAsDate = new Date();
+          loadStudents();
+        } else {
+          const error = await response.json();
+          document.getElementById("adminError").textContent = error.message || "Invalid credentials!";
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        document.getElementById("adminError").textContent = "Login failed. Please try again.";
       }
     }
 
     function logout() {
-      location.reload();
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      document.getElementById("adminView").classList.add("hidden");
+      document.getElementById("adminId").value = "";
+      document.getElementById("adminPass").value = "";
     }
 
     function getStorageKey(cls, date) {
       return `attendance_admin_class_${cls}_date_${date}`;
+    }
+
+    function getAuthHeader() {
+      const token = localStorage.getItem('token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
     }
 
     function loadStudents() {
@@ -271,27 +299,61 @@
       loadAttendance();
     }
 
-    function loadAttendance() {
+    async function loadAttendance() {
       const cls = document.getElementById("class").value;
       const date = document.getElementById("date").value;
-      const data = JSON.parse(localStorage.getItem(getStorageKey(cls, date)) || "{}");
-      const rows = document.getElementById("attendanceBody").rows;
-      Array.from(rows).forEach((row, i) => {
-        row.cells[3].textContent = data[i] || "";
-      });
+      
+      try {
+        const response = await fetch(`/api/attendance/${cls}/${date}`, {
+          headers: getAuthHeader()
+        });
+        const attendance = await response.json();
+        
+        const rows = document.getElementById("attendanceBody").rows;
+        Array.from(rows).forEach((row, i) => {
+          const student = attendance.find(s => s.id === row.cells[1].textContent);
+          row.cells[3].textContent = student?.status || "";
+        });
+      } catch (error) {
+        console.error('Error loading attendance:', error);
+        alert('Error loading attendance data');
+      }
     }
 
-    function saveAttendance() {
+    async function saveAttendance() {
       const cls = document.getElementById("class").value;
       const date = document.getElementById("date").value;
       const tbody = document.getElementById("attendanceBody");
-      const data = {};
+      const marks = {};
       Array.from(tbody.rows).forEach((row, i) => {
-        data[i] = row.cells[3].textContent;
+        marks[i] = row.cells[3].textContent;
       });
-      localStorage.setItem(getStorageKey(cls, date), JSON.stringify(data));
-      document.getElementById("saveMsg").style.display = "block";
-      setTimeout(() => document.getElementById("saveMsg").style.display = "none", 2000);
+      
+      try {
+        const response = await fetch('/api/attendance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader()
+          },
+          body: JSON.stringify({ classId: cls, date: date, marks: marks })
+        });
+        
+        if (response.ok) {
+          document.getElementById("saveMsg").textContent = "✅ Attendance saved successfully!";
+          document.getElementById("saveMsg").style.display = "block";
+          setTimeout(() => document.getElementById("saveMsg").style.display = "none", 2000);
+        } else {
+          document.getElementById("saveMsg").textContent = "❌ Error saving attendance";
+          document.getElementById("saveMsg").style.display = "block";
+          setTimeout(() => document.getElementById("saveMsg").style.display = "none", 2000);
+        }
+      } catch (error) {
+        console.error('Error saving attendance:', error);
+        document.getElementById("saveMsg").textContent = "❌ Error saving attendance";
+        document.getElementById("saveMsg").style.display = "block";
+        setTimeout(() => document.getElementById("saveMsg").style.display = "none", 2000);
+      }
     }
 
     function markAllPresent() {
@@ -306,114 +368,110 @@
       saveAttendance();
     }
 
-function viewLeaveRequests() {
-  const leaveList = JSON.parse(localStorage.getItem("leaveRequests") || "[]");
-  const tbody = document.getElementById("leaveList");
-  const table = document.getElementById("leaveTable");
+    async function viewLeaveRequests() {
+      const tbody = document.getElementById("leaveList");
+      const table = document.getElementById("leaveTable");
+      
+      try {
+        const response = await fetch('/api/leave-requests', {
+          headers: getAuthHeader()
+        });
+        const leaveRequests = await response.json();
+        
+        tbody.innerHTML = "";
+        
+        if (leaveRequests.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="8">No upcoming leave requests.</td></tr>`;
+        } else {
+          leaveRequests.forEach(req => {
+            const from = new Date(req.fromDate).toLocaleDateString();
+            const to = new Date(req.toDate).toLocaleDateString();
+            const days = Math.ceil((new Date(req.toDate) - new Date(req.fromDate)) / (1000 * 60 * 60 * 24)) + 1;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+            const row = document.createElement("tr");
+            row.innerHTML = `
+              <td>${req.studentId}</td>
+              <td>${req.studentName}</td>
+              <td>${req.classId}</td>
+              <td>${from}</td>
+              <td>${to}</td>
+              <td>${days}</td>
+              <td>${req.reason}</td>
+              <td>${new Date(req.createdAt).toLocaleString()}</td>
+            `;
+            tbody.appendChild(row);
+          });
+        }
+        
+        table.style.display = "table";
+      } catch (error) {
+        console.error('Error fetching leave requests:', error);
+        alert('Error fetching leave requests');
+      }
+    }
 
-  tbody.innerHTML = "";
-
-  // Filter out expired leaves
-  const activeLeaves = leaveList.filter(req => {
-    const toDate = new Date(req.to || req.date);
-    toDate.setHours(0, 0, 0, 0);
-    return toDate >= today;
-  });
-
-  // Sort by submission time (newest first)
-  activeLeaves.sort((a, b) => new Date(b.time) - new Date(a.time));
-
-  if (activeLeaves.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8">No upcoming leave requests.</td></tr>`;
-  } else {
-    activeLeaves.forEach(req => {
-      const from = req.from || req.date;
-      const to = req.to || req.date;
-      const days = Math.ceil((new Date(to) - new Date(from)) / (1000 * 60 * 60 * 24)) + 1;
-
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${req.id}</td>
-        <td>${req.name}</td>
-        <td>${req.classId}</td>
-        <td>${from}</td>
-        <td>${to}</td>
-        <td>${days}</td>
-        <td>${req.reason}</td>
-        <td>${req.time}</td>
-      `;
-      tbody.appendChild(row);
-    });
-  }
-
-  table.style.display = "table";
-}
-
-    function generateMonthlyReport() {
+    async function generateMonthlyReport() {
       const month = document.getElementById("reportMonth").value;
       const year = document.getElementById("reportYear").value;
       const cls = document.getElementById("class").value;
-      const students = studentData[cls];
-      const report = {};
-      students.forEach(s => report[s.id] = { name: s.name, present: 0, absent: 0 });
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith(`attendance_admin_class_${cls}_date_`)) {
-          const match = key.match(/date_(\d{4})-(\d{2})-\d{2}/);
-          if (match && match[1] === year && match[2] === month) {
-            const data = JSON.parse(localStorage.getItem(key));
-            students.forEach((s, index) => {
-              const mark = data[index];
-              if (mark === "✅") report[s.id].present++;
-              else if (mark === "❌") report[s.id].absent++;
-            });
-          }
-        }
+      
+      try {
+        const response = await fetch(`/api/monthly-report/${cls}/${year}/${month}`, {
+          headers: getAuthHeader()
+        });
+        const report = await response.json();
+        
+        const tbody = document.getElementById("monthlyReportTable").querySelector("tbody");
+        tbody.innerHTML = "";
+        
+        report.forEach((student, i) => {
+          const row = `<tr>
+            <td>${i + 1}</td>
+            <td>${student.id}</td>
+            <td>${student.fullName}</td>
+            <td>${student.present}</td>
+            <td>${student.absent}</td>
+          </tr>`;
+          tbody.innerHTML += row;
+        });
+        
+        document.getElementById("monthlyReportTable").classList.remove("hidden");
+      } catch (error) {
+        console.error('Error generating monthly report:', error);
+        alert('Error generating monthly report');
       }
-
-      const tbody = document.getElementById("monthlyReportTable").querySelector("tbody");
-      tbody.innerHTML = "";
-      students.forEach((s, i) => {
-        const row = `<tr><td>${i + 1}</td><td>${s.id}</td><td>${s.name}</td><td>${report[s.id].present}</td><td>${report[s.id].absent}</td></tr>`;
-        tbody.innerHTML += row;
-      });
-      document.getElementById("monthlyReportTable").classList.remove("hidden");
     }
 
-    function changeCredentials(event, role) {
-  event.preventDefault();
+    function changeCredentials(event) {
+      event.preventDefault();
 
-  const oldUsername = document.getElementById("oldUsername").value.trim();
-  const oldPassword = document.getElementById("oldPassword").value.trim();
-  const newUsername = document.getElementById("newUsername").value.trim();
-  const newPassword = document.getElementById("newPassword").value.trim();
+      const oldUsername = document.getElementById("oldUsername").value.trim();
+      const oldPassword = document.getElementById("oldPassword").value.trim();
+      const newUsername = document.getElementById("newUsername").value.trim();
+      const newPassword = document.getElementById("newPassword").value.trim();
 
-  // Get stored credentials
-  const stored = JSON.parse(localStorage.getItem(`${role}Credentials`) || "{}");
+      // Get stored credentials
+      const stored = JSON.parse(localStorage.getItem("adminCredentials") || "{}");
 
-  if (oldUsername === stored.username && oldPassword === stored.password) {
-    // Save new credentials
-    localStorage.setItem(`${role}Credentials`, JSON.stringify({
-      username: newUsername,
-      password: newPassword
-    }));
-    document.getElementById("changeMsg").textContent = "✅ Credentials updated!";
-    document.getElementById("changeMsg").style.color = "lightgreen";
-  } else {
-    document.getElementById("changeMsg").textContent = "❌ Incorrect current credentials!";
-    document.getElementById("changeMsg").style.color = "red";
-  }
+      if (oldUsername === stored.username && oldPassword === stored.password) {
+        // Save new credentials
+        localStorage.setItem("adminCredentials", JSON.stringify({
+          username: newUsername,
+          password: newPassword
+        }));
+        document.getElementById("changeMsg").textContent = "✅ Credentials updated!";
+        document.getElementById("changeMsg").style.color = "lightgreen";
+      } else {
+        document.getElementById("changeMsg").textContent = "❌ Incorrect current credentials!";
+        document.getElementById("changeMsg").style.color = "red";
+      }
 
-  setTimeout(() => {
-    document.getElementById("changeMsg").textContent = "";
-  }, 3000);
+      setTimeout(() => {
+        document.getElementById("changeMsg").textContent = "";
+      }, 3000);
 
-  // Optional: Clear form
-  event.target.reset();
+      // Optional: Clear form
+      event.target.reset();
 }
   </script>
     <img src="logo2.png" alt="Logo 2" class="logo2" />

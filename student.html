@@ -102,11 +102,145 @@
           <button type="submit">Submit Leave</button>
         </form>
         <p id="leaveSuccess" style="color:lightgreen; display:none;">✅ Leave submitted successfully!</p>
-        <button onclick="logout()">🔓 Logout</button>
+        <button onclick="logoutStudent()">🔓 Logout</button>
       </div>
       <img src="logo2.png" alt="Logo 2" class="logo2" />
     </div>
   </div>
+
+  <script>
+    // Helper function to get JWT token
+    function getToken() {
+      return localStorage.getItem('studentToken');
+    }
+
+    // Helper function to set JWT token
+    function setToken(token) {
+      localStorage.setItem('studentToken', token);
+    }
+
+    // Helper function to clear JWT token
+    function clearToken() {
+      localStorage.removeItem('studentToken');
+    }
+
+    // Helper function to get auth header
+    function getAuthHeader() {
+      const token = getToken();
+      if (token) {
+        return {
+          'Authorization': `Bearer ${token}`
+        };
+      }
+      return {};
+    }
+
+    async function loginStudent() {
+      const studentId = document.getElementById("studentId").value;
+      const password = prompt("Enter your password:");
+      
+      if (!password) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/students/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ studentId, password })
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Login failed');
+        }
+        
+        const data = await response.json();
+        setToken(data.token);
+        
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("dashboardSection").classList.remove("hidden");
+        document.getElementById("studentName").textContent = `Welcome, ${data.student.fullName}`;
+        
+        // Fill student details
+        const detailsTable = document.getElementById("studentDetailsTable");
+        detailsTable.innerHTML = `
+          <tr><th>Student ID</th><td>${data.student.id}</td></tr>
+          <tr><th>Full Name</th><td>${data.student.fullName}</td></tr>
+          <tr><th>Class</th><td>${data.student.classId}</td></tr>
+        `;
+        
+        // Load attendance
+        loadAttendance(data.student.id);
+      } catch (error) {
+        console.error('Login error:', error);
+        alert(error.message);
+      }
+    }
+
+    async function loadAttendance(studentId) {
+      try {
+        const response = await fetch(`/api/attendance/${studentId}`, {
+          headers: getAuthHeader()
+        });
+        const attendance = await response.json();
+        
+        const tbody = document.getElementById("attendanceTable");
+        tbody.innerHTML = "";
+        
+        attendance.forEach(record => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${record.date}</td>
+            <td>${record.status}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      } catch (error) {
+        console.error('Error loading attendance:', error);
+        alert('Error loading attendance data');
+      }
+    }
+
+    async function submitLeave(event) {
+      event.preventDefault();
+      const studentId = document.getElementById("studentId").value;
+      const from = document.getElementById("leaveFrom").value;
+      const to = document.getElementById("leaveTo").value;
+      const reason = document.getElementById("leaveReason").value;
+      
+      try {
+        const response = await fetch('/api/leave-requests', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader()
+          },
+          body: JSON.stringify({ studentId, fromDate: from, toDate: to, reason })
+        });
+        
+        if (response.ok) {
+          alert('Leave request submitted successfully!');
+          event.target.reset();
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Error submitting leave request');
+        }
+      } catch (error) {
+        console.error('Error submitting leave request:', error);
+        alert('Error submitting leave request');
+      }
+    }
+
+    // Logout function
+    function logoutStudent() {
+      clearToken();
+      document.getElementById("loginSection").classList.remove("hidden");
+      document.getElementById("dashboardSection").classList.add("hidden");
+    }
+  </script>
 
   <!-- ✅ Include external JS file at end of body -->
   <script src="student.js" defer></script>

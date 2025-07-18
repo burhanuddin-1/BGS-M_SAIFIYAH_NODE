@@ -1,0 +1,40 @@
+[build]
+command = "npm install && npm run build"
+base = ""
+publish = "dist"
+
+[build.environment]
+NODE_ENV = "production"
+
+[context.production.environment]
+JWT_SECRET = "${JWT_SECRET}"
+
+[functions]
+  # Enable Node.js functions
+  node_bundler = "webpack"
+  include_node_modules = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[headers]
+  "/*"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+[plugins]
+  - "netlify-plugin-sentry"
+  - "netlify-plugin-gzip"
+  - "netlify-plugin-cache"
+
+[build.image]
+  name = "node:18"
+
+[build.publish]
+  use_relative_assets = true
+  base_path = ""
