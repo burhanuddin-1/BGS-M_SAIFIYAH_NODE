@@ -11,7 +11,7 @@ JWT_SECRET = "${JWT_SECRET}"
 
 [functions]
 node_bundler = "webpack"
-include_node_modules = true
+include_node_modules = false
 
 [[redirects]]
 from = "/*"
